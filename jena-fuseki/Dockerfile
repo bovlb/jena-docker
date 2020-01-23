@@ -58,7 +58,7 @@ RUN     (curl -sS --fail $ASF_MIRROR_EU/jena/binaries/apache-jena-fuseki-$FUSEKI
 # Test the install by testing its ping resource
 RUN chmod +x /jena-fuseki/fuseki-server
 RUN  /jena-fuseki/fuseki-server & \
-     sleep 4 && \
+     sleep 15 && \
      curl -sS --fail 'http://localhost:3030/$/ping' 
 
 # No need to kill Fuseki as our shell will exit
