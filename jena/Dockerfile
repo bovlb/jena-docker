@@ -13,30 +13,45 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-#FROM alpine:3.4
-FROM openjdk:8-jre-alpine
-#RUN apk add --update --no-cache openjdk8-jre bash wget ca-certificates && rm -rf /var/cache/apk/*
-RUN apk add --update --no-cache bash curl ca-certificates && rm -rf /var/cache/apk/*
+FROM openjdk:11-jre-slim-buster
+
 MAINTAINER Stian Soiland-Reyes <stain@apache.org>
 
+ENV LANG C.UTF-8
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+       bash curl ca-certificates findutils coreutils \
+    ; \
+    rm -rf /var/lib/apt/lists/*
+
+
+
 # Update below according to https://jena.apache.org/download/ 
-# and checksum for .tar.gz
-ENV JENA_SHA512 7598dfe5d7f367949eb4361fc7d160fc908b67a1e3307e78f368ef8d95510f88819416c26b503bc8257c170e4d6b46b79c0634f1ba830ed2fa9782611187198e
-ENV JENA_VERSION 3.11.0
-# Tip: No need for https as we've coded the sha512 above
-ENV ASF_MIRROR_EU http://www.eu.apache.org/dist/
-ENV ASF_MIRROR_US http://www.us.apache.org/dist/
+# and checksum for apache-jena-3.x.x.tar.gz.sha512
+ENV JENA_SHA512 ba2e966df3ff2c8727b02f95771aa9f9953687fadbd51a95fff3709bb342ca64c1ac54bc25c9e24432b038c14737979c48fad5885e5841d6c15cc4967859b037
+ENV JENA_VERSION 3.14.0
+# No need for https due to sha512 checksums below
+ENV ASF_MIRROR http://www.apache.org/dyn/mirrors/mirrors.cgi?action=download&filename=
 ENV ASF_ARCHIVE http://archive.apache.org/dist/
-#
+
+LABEL org.opencontainers.image.url https://github.com/stain/jena-docker/tree/master/jena
+LABEL org.opencontainers.image.source https://github.com/stain/jena-docker/
+LABEL org.opencontainers.image.documentation https://jena.apache.org/documentation/tools/
+LABEL org.opencontainers.image.title "Apache Jena"
+LABEL org.opencontainers.image.description "Jena riot is a command line tool for parsing and validating multiple RDF formats"
+LABEL org.opencontainers.image.version ${FUSEKI_VERSION}
+LABEL org.opencontainers.image.licenses "(Apache-2.0 AND (GPL-2.0 WITH Classpath-exception-2.0) AND GPL-3.0)"
+LABEL org.opencontainers.image.authors "Apache Jena by https://jena.apache.org/; this image by https://orcid.org/0000-0001-9842-9718"
+
 
 WORKDIR /tmp
 # sha512 checksum
 RUN echo "$JENA_SHA512  jena.tar.gz" > jena.tar.gz.sha512
 # Download/check/unpack/move in one go (to reduce image size)
-RUN     (curl -sS --fail $ASF_MIRROR_EU/jena/binaries/apache-jena-$JENA_VERSION.tar.gz || \
-         curl -sS --fail $ASF_MIRROR_US/jena/binaries/apache-jena-$JENA_VERSION.tar.gz || \
-         curl -sS --fail $ASF_ARCHIVE/jena/binaries/apache-jena-$JENA_VERSION.tar.gz \
-        ) > jena.tar.gz && \
+RUN     (curl --location --silent --show-error --fail --retry-connrefused --retry 3 --output jena.tar.gz ${ASF_MIRROR}jena/binaries/apache-jena-$JENA_VERSION.tar.gz || \
+         curl --fail --silent --show-error --retry-connrefused --retry 3 --output jena.tar.gz $ASF_ARCHIVE/jena/binaries/apache-jena-$JENA_VERSION.tar.gz) && \
 	sha512sum -c jena.tar.gz.sha512 && \
 	tar zxf jena.tar.gz && \
 	mv apache-jena* /jena && \

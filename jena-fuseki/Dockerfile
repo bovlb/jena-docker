@@ -14,24 +14,34 @@
 #   limitations under the License.
 
 
-#FROM alpine:3.4
-#RUN apk add --update openjdk8-jre pwgen bash wget ca-certificates && rm -rf /var/cache/apk/*
-FROM openjdk:8-jre-alpine
-RUN apk add --update pwgen bash curl ca-certificates && rm -rf /var/cache/apk/*
-
+FROM openjdk:11-jre-slim-buster
 MAINTAINER Stian Soiland-Reyes <stain@apache.org>
 
+ENV LANG C.UTF-8
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+       bash curl ca-certificates findutils coreutils pwgen \
+    ; \
+    rm -rf /var/lib/apt/lists/*
 
 
-# Update below according to https://jena.apache.org/download/ and
-# corresponding *.tar.gz.sha512 from https://www.apache.org/dist/jena/binaries/
-ENV FUSEKI_SHA512 18018d262987673c2707e0f8daac407eb61dfc4a08015e19b72b1d682d1540eddf2507575b79a161b37f029da63a58d71ba7772c1b5b5fca80d845527a6f7a7a
-ENV FUSEKI_VERSION 3.11.0
-# Tip: No need for https as we've coded the sha512 above
-ENV ASF_MIRROR_EU http://www.eu.apache.org/dist/
-ENV ASF_MIRROR_US http://www.us.apache.org/dist/
+# Update below according to https://jena.apache.org/download/ 
+# and checksum for apache-jena-3.x.x.tar.gz.sha512
+ENV FUSEKI_SHA512 62ac07f70c65a77fb90127635fa82f719fd5f4f10339c32702ebd664227d78f7414233d69d5b73f25b033f2fdea37b8221ea498755697eea3c1344819e4a527e
+ENV FUSEKI_VERSION 3.14.0
+# No need for https due to sha512 checksums below
+ENV ASF_MIRROR http://www.apache.org/dyn/mirrors/mirrors.cgi?action=download&filename=
 ENV ASF_ARCHIVE http://archive.apache.org/dist/
-#
+
+LABEL org.opencontainers.image.url https://github.com/stain/jena-docker/tree/master/jena-fuseki
+LABEL org.opencontainers.image.source https://github.com/stain/jena-docker/
+LABEL org.opencontainers.image.documentation https://jena.apache.org/documentation/fuseki2/
+LABEL org.opencontainers.image.title "Apache Jena Fuseki"
+LABEL org.opencontainers.image.description "Fuseki is a SPARQL 1.1 server with a web interface, backed by the Apache Jena TDB RDF triple store."
+LABEL org.opencontainers.image.version ${FUSEKI_VERSION}
+LABEL org.opencontainers.image.licenses "(Apache-2.0 AND (GPL-2.0 WITH Classpath-exception-2.0) AND GPL-3.0)"
+LABEL org.opencontainers.image.authors "Apache Jena Fuseki by https://jena.apache.org/; this image by https://orcid.org/0000-0001-9842-9718"
 
 # Config and data
 VOLUME /fuseki
@@ -42,42 +52,41 @@ ENV FUSEKI_BASE /fuseki
 ENV FUSEKI_HOME /jena-fuseki
 
 WORKDIR /tmp
-# sha512 checksum
+# published sha512 checksum
 RUN echo "$FUSEKI_SHA512  fuseki.tar.gz" > fuseki.tar.gz.sha512
 # Download/check/unpack/move in one go (to reduce image size)
-RUN     (curl -sS --fail $ASF_MIRROR_EU/jena/binaries/apache-jena-fuseki-$FUSEKI_VERSION.tar.gz || \
-         curl -sS --fail $ASF_MIRROR_US/jena/binaries/apache-jena-fuseki-$FUSEKI_VERSION.tar.gz || \
-         curl -sS --fail $ASF_ARCHIVE/jena/binaries/apache-jena-fuseki-$FUSEKI_VERSION.tar.gz \
-        ) > fuseki.tar.gz && \
+RUN     (curl --location --silent --show-error --fail --retry-connrefused --retry 3 --output fuseki.tar.gz ${ASF_MIRROR}jena/binaries/apache-jena-fuseki-$FUSEKI_VERSION.tar.gz || \
+         curl --fail --silent --show-error --retry-connrefused --retry 3 --output fuseki.tar.gz $ASF_ARCHIVE/jena/binaries/apache-jena-fuseki-$FUSEKI_VERSION.tar.gz) && \
         sha512sum -c fuseki.tar.gz.sha512 && \
         tar zxf fuseki.tar.gz && \
         mv apache-jena-fuseki* $FUSEKI_HOME && \
         rm fuseki.tar.gz* && \
-        cd $FUSEKI_HOME && rm -rf fuseki.war
+        cd $FUSEKI_HOME && rm -rf fuseki.war && chmod 755 fuseki-server
 
-# Test the install by testing it's ping resource
-RUN  /jena-fuseki/fuseki-server & \
-     sleep 4 && \
+# Test the install by testing it's ping resource. 20s sleep because Docker Hub.
+RUN  $FUSEKI_HOME/fuseki-server & \
+     sleep 20 && \
      curl -sS --fail 'http://localhost:3030/$/ping' 
 
-# No need to kill Fuseki as our shell will exit
+# No need to kill Fuseki as our shell will exit after curl
 
 # As "localhost" is often inaccessible within Docker container,
 # we'll enable basic-auth with a random admin password
 # (which we'll generate on start-up)
-COPY shiro.ini /jena-fuseki/shiro.ini
+COPY shiro.ini $FUSEKI_HOME/shiro.ini
 COPY docker-entrypoint.sh /
 RUN chmod 755 /docker-entrypoint.sh
 
 
-COPY load.sh /jena-fuseki/
-COPY tdbloader /jena-fuseki/
-RUN chmod 755 /jena-fuseki/load.sh /jena-fuseki/tdbloader
+COPY load.sh $FUSEKI_HOME/
+COPY tdbloader $FUSEKI_HOME/
+RUN chmod 755 $FUSEKI_HOME/load.sh $FUSEKI_HOME/tdbloader
 #VOLUME /staging
 
 
 # Where we start our server from
-WORKDIR /jena-fuseki
+WORKDIR $FUSEKI_HOME
 EXPOSE 3030
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/jena-fuseki/fuseki-server"]
+
