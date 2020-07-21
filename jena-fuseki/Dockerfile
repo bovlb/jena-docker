@@ -25,8 +25,8 @@ MAINTAINER Stian Soiland-Reyes <stain@apache.org>
 
 # Update below according to https://jena.apache.org/download/ and
 # corresponding *.tar.gz.sha512 from https://www.apache.org/dist/jena/binaries/
-ENV FUSEKI_SHA512 62ac07f70c65a77fb90127635fa82f719fd5f4f10339c32702ebd664227d78f7414233d69d5b73f25b033f2fdea37b8221ea498755697eea3c1344819e4a527e
-ENV FUSEKI_VERSION 3.14.0
+ENV FUSEKI_SHA512 18018d262987673c2707e0f8daac407eb61dfc4a08015e19b72b1d682d1540eddf2507575b79a161b37f029da63a58d71ba7772c1b5b5fca80d845527a6f7a7a
+ENV FUSEKI_VERSION 3.11.0
 # Tip: No need for https as we've coded the sha512 above
 ENV ASF_MIRROR_EU http://www.eu.apache.org/dist/
 ENV ASF_MIRROR_US http://www.us.apache.org/dist/
@@ -55,8 +55,7 @@ RUN     (curl -sS --fail $ASF_MIRROR_EU/jena/binaries/apache-jena-fuseki-$FUSEKI
         rm fuseki.tar.gz* && \
         cd $FUSEKI_HOME && rm -rf fuseki.war
 
-# Test the install by testing its ping resource
-RUN chmod +x /jena-fuseki/fuseki-server
+# Test the install by testing it's ping resource
 RUN  /jena-fuseki/fuseki-server & \
      sleep 4 && \
      curl -sS --fail 'http://localhost:3030/$/ping' 
